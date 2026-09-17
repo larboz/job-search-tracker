@@ -1,0 +1,666 @@
+<title>Application Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F4F6; --surface: #FFFFFF; --surface-2: #EAECF0; --border: #DCE0E6;
+    --ink: #12161C; --ink-2: #4A5164; --ink-muted: #838B9B;
+    --accent: #2F5AA8; --accent-soft: #E4EBF6;
+    --status-critical: #B3271E; --status-critical-soft: #F7E4E2;
+    --status-good: #1F8A5F; --status-good-soft: #E1F1E9;
+    --status-warning: #B98900; --status-warning-soft: #F7EDD6;
+    --shadow: 0 1px 2px rgba(20, 24, 33, 0.06), 0 8px 24px -12px rgba(20, 24, 33, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171C; --surface: #1A1E24; --surface-2: #20252C; --border: #2B313A;
+      --ink: #EDEFF3; --ink-2: #B7BDC9; --ink-muted: #7C8494;
+      --accent: #5A8DD6; --accent-soft: #22334C;
+      --status-critical: #D9695F; --status-critical-soft: #3A2523;
+      --status-good: #2E9E8B; --status-good-soft: #1D302C;
+      --status-warning: #B88A2A; --status-warning-soft: #332A16;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171C; --surface: #1A1E24; --surface-2: #20252C; --border: #2B313A;
+    --ink: #EDEFF3; --ink-2: #B7BDC9; --ink-muted: #7C8494;
+    --accent: #5A8DD6; --accent-soft: #22334C;
+    --status-critical: #D9695F; --status-critical-soft: #3A2523;
+    --status-good: #2E9E8B; --status-good-soft: #1D302C;
+    --status-warning: #B88A2A; --status-warning-soft: #332A16;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding-inline: 20px; padding-block: 28px 48px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+
+  header.page { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px; margin-bottom: 22px; }
+  .titleblock h1 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: clamp(1.7rem, 1.3rem + 1.6vw, 2.35rem); margin: 0 0 4px 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .titleblock p { margin: 0; color: var(--ink-muted); font-size: 0.92rem; }
+  .sync-chip {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 14px; white-space: nowrap; height: fit-content; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .sync-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-good); }
+  .sync-chip.offline .dot { background: var(--status-warning); }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .stat .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 8px; }
+  .stat .value { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat .value.critical { color: var(--status-critical); }
+  .stat .value.accent { color: var(--accent); }
+  .stat .value.good { color: var(--status-good); }
+  .stat .sub { font-size: 0.78rem; color: var(--ink-muted); margin-top: 6px; }
+
+  .panels { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 22px; }
+  @media (max-width: 720px) { .panels { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 12px; box-shadow: var(--shadow); }
+  .panel h2 { font-size: 0.95rem; font-weight: 600; margin: 0 0 2px 0; }
+  .panel .panel-sub { font-size: 0.78rem; color: var(--ink-muted); margin: 0 0 12px 0; }
+  .chart-svg { width: 100%; height: auto; overflow: visible; }
+  .bar { fill: var(--accent); cursor: pointer; transition: fill 0.12s ease; }
+  .bar:hover { fill: var(--status-critical); }
+  .axis-label { fill: var(--ink-muted); font-size: 9.5px; font-family: "IBM Plex Mono", monospace; }
+  .grid-line { stroke: var(--border); stroke-width: 1; }
+  .empty-chart { color: var(--ink-muted); font-size: 0.82rem; padding: 30px 0; text-align: center; }
+
+  section.table-section { margin-bottom: 20px; }
+  section.table-section h2 { font-size: 0.95rem; font-weight: 600; margin: 0; }
+  .table-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+  .filter-chip {
+    font-family: "Public Sans", sans-serif; font-size: 0.78rem; font-weight: 500; padding: 6px 13px;
+    border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); cursor: pointer;
+  }
+  .filter-chip.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .search-input, .field-input, .status-select {
+    font-family: "Public Sans", sans-serif; font-size: 0.82rem; padding: 7px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  }
+  .search-input { border-radius: 999px; min-width: 180px; margin-left: auto; }
+  .search-input::placeholder { color: var(--ink-muted); }
+  .search-input:focus, .field-input:focus, .status-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .add-row {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .add-row .field-input { flex: 1 1 140px; min-width: 110px; }
+  .add-row button {
+    font-family: "Public Sans", sans-serif; font-size: 0.82rem; font-weight: 600; padding: 7px 16px;
+    border-radius: 999px; border: none; background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .add-row button:hover { opacity: 0.9; }
+
+  table.ledger { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+  table.ledger th {
+    text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--ink-muted); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface);
+  }
+  table.ledger th[data-active] { color: var(--ink); }
+  table.ledger th .arrow { font-size: 0.65em; margin-left: 3px; opacity: 0.6; }
+  table.ledger td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.ledger tbody tr:last-child td { border-bottom: none; }
+  table.ledger tbody tr:hover { background: var(--surface-2); }
+  .company { font-weight: 600; }
+  .role { color: var(--ink-2); font-size: 0.82rem; }
+  .mono { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; color: var(--ink-2); white-space: nowrap; }
+
+  .status-select {
+    font-size: 0.76rem; font-weight: 600; padding: 4px 9px; border-radius: 999px; cursor: pointer; border-width: 1px;
+  }
+  .status-select.pending { background: var(--surface-2); color: var(--ink-2); border-color: var(--border); }
+  .status-select.interviewing { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .status-select.offer { background: var(--status-good-soft); color: var(--status-good); border-color: transparent; }
+  .status-select.rejected { background: var(--status-critical-soft); color: var(--status-critical); border-color: transparent; }
+  .status-select.withdrawn { background: var(--surface-2); color: var(--ink-muted); border-color: var(--border); }
+
+  .days-pill {
+    display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; font-weight: 500;
+    padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2);
+  }
+  .days-pill.fast { background: var(--status-critical-soft); color: var(--status-critical); }
+  .days-pill.unknown { color: var(--ink-muted); background: transparent; }
+
+  .row-actions { display: flex; align-items: center; gap: 6px; }
+  .date-input { width: 118px; }
+  .del-btn {
+    border: none; background: transparent; color: var(--ink-muted); cursor: pointer; font-size: 0.95rem;
+    line-height: 1; padding: 4px 6px; border-radius: 6px;
+  }
+  .del-btn:hover { background: var(--status-critical-soft); color: var(--status-critical); }
+  .del-btn.confirm { background: var(--status-critical-soft); color: var(--status-critical); font-size: 0.68rem; font-weight: 600; padding: 4px 8px; }
+
+  .table-count { font-size: 0.78rem; color: var(--ink-muted); margin: 8px 2px 0; }
+
+  footer.note { font-size: 0.78rem; color: var(--ink-muted); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px; }
+  footer.note strong { color: var(--ink-2); }
+
+  .tooltip {
+    position: fixed; pointer-events: none; background: var(--ink); color: var(--bg);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; padding: 6px 10px; border-radius: 8px;
+    transform: translate(-50%, -115%); white-space: nowrap; opacity: 0; transition: opacity 0.1s ease; z-index: 10;
+  }
+  .tooltip.show { opacity: 1; }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="titleblock">
+      <h1>Application Ledger</h1>
+      <p>Seeded from Gmail &middot; every status below is yours to correct</p>
+    </div>
+    <div class="sync-chip" id="syncChip"><span class="dot"></span><span id="syncText">Connecting&hellip;</span></div>
+  </header>
+
+  <div class="stat-row" id="statRow"></div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Rejections per week</h2>
+      <p class="panel-sub" id="weekSub">&nbsp;</p>
+      <svg class="chart-svg" id="weekChart" viewBox="0 0 560 200" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="panel">
+      <h2>Time to rejection</h2>
+      <p class="panel-sub" id="histSub">&nbsp;</p>
+      <svg class="chart-svg" id="histChart" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <section class="table-section">
+    <h2>All applications</h2>
+    <p class="panel-sub" style="margin-top:4px;">Change a status right in the table &mdash; it saves immediately and everyone with this page sees it</p>
+
+    <div class="add-row">
+      <input class="field-input" id="newCompany" type="text" placeholder="Company">
+      <input class="field-input" id="newRole" type="text" placeholder="Role (optional)">
+      <input class="field-input date-input" id="newApplied" type="date">
+      <button id="addBtn">+ Add application</button>
+    </div>
+
+    <div class="table-controls">
+      <button class="filter-chip active" data-filter="all">All</button>
+      <button class="filter-chip" data-filter="pending">Pending</button>
+      <button class="filter-chip" data-filter="interviewing">Interviewing</button>
+      <button class="filter-chip" data-filter="offer">Offer</button>
+      <button class="filter-chip" data-filter="rejected">Rejected</button>
+      <button class="filter-chip" data-filter="withdrawn">Withdrawn</button>
+      <input class="search-input" id="searchBox" type="text" placeholder="Search company or role&hellip;">
+    </div>
+
+    <div class="table-scroll">
+      <table class="ledger" id="ledgerTable">
+        <thead>
+          <tr>
+            <th data-key="company">Company<span class="arrow"></span></th>
+            <th data-key="role">Role<span class="arrow"></span></th>
+            <th data-key="applied">Applied<span class="arrow" data-active>&#9660;</span></th>
+            <th data-key="status">Status<span class="arrow"></span></th>
+            <th data-key="days">Days</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+    </div>
+    <p class="table-count" id="tableCount"></p>
+  </section>
+
+  <footer class="note">
+    <strong>How this works:</strong> applications are stored on this page, not in a static file &mdash; the status dropdown, the date fields and the add/delete controls all write straight to it, and reopening this link always shows the latest state.
+    A rejection's day-count uses its applied and rejected dates, so set both to get a real number. This won't re-scan Gmail on its own; ask for a re-check whenever you want new applications pulled in.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var STATUS_ORDER = ["pending", "interviewing", "offer", "rejected", "withdrawn"];
+  var STATUS_LABEL = { pending: "Pending", interviewing: "Interviewing", offer: "Offer", rejected: "Rejected", withdrawn: "Withdrawn" };
+
+  var tip = document.createElement('div');
+  tip.className = 'tooltip';
+  document.body.appendChild(tip);
+  function showTip(x, y, text) { tip.textContent = text; tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.classList.add('show'); }
+  function hideTip() { tip.classList.remove('show'); }
+
+  function fmtDate(d) {
+    if (!d) return null;
+    var parts = d.split('-');
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[parseInt(parts[1], 10) - 1] + ' ' + parseInt(parts[2], 10);
+  }
+  function daysBetween(a, b) {
+    if (!a || !b) return null;
+    var d1 = new Date(a + 'T00:00:00Z'), d2 = new Date(b + 'T00:00:00Z');
+    return Math.round((d2 - d1) / 86400000);
+  }
+
+  var docsById = {};
+  var sortKey = 'applied';
+  var sortDir = -1;
+  var activeFilter = 'all';
+  var searchTerm = '';
+  var db = null;
+
+  var syncChip = document.getElementById('syncChip');
+  var syncText = document.getElementById('syncText');
+  function setSync(ok, label) {
+    syncChip.classList.toggle('offline', !ok);
+    syncText.textContent = label;
+  }
+
+  function rowsArray() {
+    return Object.keys(docsById).map(function (id) {
+      var d = docsById[id];
+      return {
+        id: id,
+        company: d.company || '',
+        role: d.role || '',
+        applied: d.applied || null,
+        status: d.status || 'pending',
+        rejected: d.rejected || null,
+        days: daysBetween(d.applied, d.rejected)
+      };
+    });
+  }
+
+  // ---------- stats ----------
+  function renderStats(rows) {
+    var total = rows.length;
+    var counts = { pending: 0, interviewing: 0, offer: 0, rejected: 0, withdrawn: 0 };
+    rows.forEach(function (r) { counts[r.status] = (counts[r.status] || 0) + 1; });
+    var pairedDays = rows.filter(function (r) { return r.status === 'rejected' && r.days !== null; }).map(function (r) { return r.days; });
+    pairedDays.sort(function (a, b) { return a - b; });
+    var avg = pairedDays.length ? (pairedDays.reduce(function (a, b) { return a + b; }, 0) / pairedDays.length) : null;
+    var median = null;
+    if (pairedDays.length) {
+      var mid = Math.floor(pairedDays.length / 2);
+      median = pairedDays.length % 2 ? pairedDays[mid] : (pairedDays[mid - 1] + pairedDays[mid]) / 2;
+    }
+    var rejectRate = total ? Math.round((counts.rejected / total) * 100) : 0;
+
+    var stats = [
+      { label: 'Applications', value: String(total), sub: 'tracked on this page' },
+      { label: 'Rejected', value: String(counts.rejected), sub: total ? (rejectRate + '% of total') : '—', critical: true },
+      { label: 'Interviewing', value: String(counts.interviewing), sub: 'active process', accent: true },
+      { label: 'Offers', value: String(counts.offer), sub: 'let\'s go', good: true },
+      { label: 'Time to reject', value: avg !== null ? (avg.toFixed(1) + 'd avg') : '—', sub: median !== null ? ('median ' + median + 'd · n=' + pairedDays.length) : 'no matched pairs yet' }
+    ];
+    var statRow = document.getElementById('statRow');
+    statRow.innerHTML = '';
+    stats.forEach(function (s) {
+      var cls = s.critical ? ' critical' : (s.accent ? ' accent' : (s.good ? ' good' : ''));
+      var el = document.createElement('div');
+      el.className = 'stat';
+      el.innerHTML = '<div class="label">' + s.label + '</div><div class="value' + cls + '">' + s.value + '</div><div class="sub">' + s.sub + '</div>';
+      statRow.appendChild(el);
+    });
+  }
+
+  // ---------- charts ----------
+  function isoWeekStart(dateStr) {
+    var d = new Date(dateStr + 'T00:00:00Z');
+    var day = d.getUTCDay();
+    var diff = (day === 0 ? -6 : 1) - day;
+    d.setUTCDate(d.getUTCDate() + diff);
+    return d;
+  }
+  function fmtShort(d) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getUTCMonth()] + ' ' + d.getUTCDate();
+  }
+
+  function renderWeekChart(rows) {
+    var svg = document.getElementById('weekChart');
+    svg.innerHTML = '';
+    var rejected = rows.filter(function (r) { return r.status === 'rejected' && r.rejected; });
+    var sub = document.getElementById('weekSub');
+    if (!rejected.length) {
+      sub.textContent = 'No rejections logged yet';
+      svg.setAttribute('viewBox', '0 0 560 60');
+      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', 10); t.setAttribute('y', 30); t.setAttribute('class', 'axis-label');
+      t.textContent = 'Nothing to chart yet';
+      svg.appendChild(t);
+      return;
+    }
+    var weekStarts = rejected.map(function (r) { return isoWeekStart(r.rejected).getTime(); });
+    var minW = Math.min.apply(null, weekStarts), maxW = Math.max.apply(null, weekStarts);
+    var weeks = [];
+    for (var t2 = minW; t2 <= maxW; t2 += 7 * 86400000) weeks.push(t2);
+    var counts = weeks.map(function (w) {
+      return rejected.filter(function (r) { return isoWeekStart(r.rejected).getTime() === w; }).length;
+    });
+    sub.textContent = weeks.length + '-week span, most recent on the right';
+    svg.setAttribute('viewBox', '0 0 560 200');
+
+    var W = 560, H = 200, padL = 22, padB = 24, padT = 10, padR = 6;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var maxV = Math.max.apply(null, counts);
+    var n = counts.length;
+    var gap = n > 20 ? 2 : 6;
+    var barW = Math.max((innerW - gap * (n - 1)) / n, 2);
+    var ns = 'http://www.w3.org/2000/svg';
+
+    [0, 0.5, 1].forEach(function (f) {
+      var y = padT + innerH * (1 - f);
+      var line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      line.setAttribute('class', 'grid-line');
+      svg.appendChild(line);
+    });
+
+    counts.forEach(function (v, i) {
+      var h = maxV ? (v / maxV) * innerH : 0;
+      var x = padL + i * (barW + gap);
+      var y = padT + innerH - h;
+      var rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', x); rect.setAttribute('y', y);
+      rect.setAttribute('width', barW); rect.setAttribute('height', Math.max(h, v > 0 ? 2 : 0));
+      rect.setAttribute('rx', Math.min(3, barW / 2)); rect.setAttribute('class', 'bar');
+      rect.addEventListener('mousemove', function (e) { showTip(e.clientX, e.clientY, 'Week of ' + fmtShort(new Date(weeks[i])) + ': ' + v + (v === 1 ? ' rejection' : ' rejections')); });
+      rect.addEventListener('mouseleave', hideTip);
+      svg.appendChild(rect);
+      if (n <= 16 && i % Math.max(1, Math.round(n / 8)) === 0) {
+        var label = document.createElementNS(ns, 'text');
+        label.setAttribute('x', x + barW / 2); label.setAttribute('y', H - 6);
+        label.setAttribute('text-anchor', 'middle'); label.setAttribute('class', 'axis-label');
+        label.textContent = fmtShort(new Date(weeks[i]));
+        svg.appendChild(label);
+      }
+    });
+    var maxLabel = document.createElementNS(ns, 'text');
+    maxLabel.setAttribute('x', padL); maxLabel.setAttribute('y', padT + 8);
+    maxLabel.setAttribute('class', 'axis-label'); maxLabel.textContent = maxV;
+    svg.appendChild(maxLabel);
+  }
+
+  function renderHistChart(rows) {
+    var svg = document.getElementById('histChart');
+    svg.innerHTML = '';
+    var pairs = rows.filter(function (r) { return r.status === 'rejected' && r.days !== null; });
+    var sub = document.getElementById('histSub');
+    if (!pairs.length) {
+      sub.textContent = 'No matched applied/rejected pairs yet';
+      svg.setAttribute('viewBox', '0 0 320 60');
+      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', 10); t.setAttribute('y', 30); t.setAttribute('class', 'axis-label');
+      t.textContent = 'Nothing to chart yet';
+      svg.appendChild(t);
+      return;
+    }
+    sub.textContent = pairs.length + ' matched pairs';
+    svg.setAttribute('viewBox', '0 0 320 200');
+    var buckets = [
+      { label: '0–3', min: 0, max: 3, count: 0 },
+      { label: '4–7', min: 4, max: 7, count: 0 },
+      { label: '8–14', min: 8, max: 14, count: 0 },
+      { label: '15–21', min: 15, max: 21, count: 0 },
+      { label: '22–30', min: 22, max: 30, count: 0 },
+      { label: '31+', min: 31, max: Infinity, count: 0 }
+    ];
+    pairs.forEach(function (r) {
+      var b = buckets.find(function (b) { return r.days >= b.min && r.days <= b.max; });
+      if (b) b.count++;
+    });
+
+    var W = 320, H = 200, padL = 16, padB = 28, padT = 10, padR = 6;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var maxV = Math.max.apply(null, buckets.map(function (b) { return b.count; }));
+    var n = buckets.length;
+    var gap = 8;
+    var barW = (innerW - gap * (n - 1)) / n;
+    var ns = 'http://www.w3.org/2000/svg';
+
+    [0, 0.5, 1].forEach(function (f) {
+      var y = padT + innerH * (1 - f);
+      var line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      line.setAttribute('class', 'grid-line');
+      svg.appendChild(line);
+    });
+
+    buckets.forEach(function (b, i) {
+      var h = maxV ? (b.count / maxV) * innerH : 0;
+      var x = padL + i * (barW + gap);
+      var y = padT + innerH - h;
+      var rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', x); rect.setAttribute('y', y);
+      rect.setAttribute('width', barW); rect.setAttribute('height', Math.max(h, 2));
+      rect.setAttribute('rx', 3); rect.setAttribute('class', 'bar');
+      rect.addEventListener('mousemove', function (e) { showTip(e.clientX, e.clientY, b.label + ' days: ' + b.count + (b.count === 1 ? ' company' : ' companies')); });
+      rect.addEventListener('mouseleave', hideTip);
+      svg.appendChild(rect);
+      var label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', x + barW / 2); label.setAttribute('y', H - 8);
+      label.setAttribute('text-anchor', 'middle'); label.setAttribute('class', 'axis-label');
+      label.textContent = b.label;
+      svg.appendChild(label);
+    });
+  }
+
+  // ---------- table ----------
+  var pendingDelete = null;
+
+  function writeField(id, patch) {
+    if (!db) return;
+    Object.assign(docsById[id], patch);
+    db.collection('applications').doc(id).update(patch).catch(function (err) {
+      console.error('update failed', err);
+    });
+  }
+
+  function renderTable() {
+    var rows = rowsArray().filter(function (r) {
+      if (activeFilter !== 'all' && r.status !== activeFilter) return false;
+      if (searchTerm) {
+        var hay = (r.company + ' ' + r.role).toLowerCase();
+        if (hay.indexOf(searchTerm) === -1) return false;
+      }
+      return true;
+    });
+
+    rows.sort(function (a, b) {
+      var av = a[sortKey], bv = b[sortKey];
+      if (av === null || av === undefined || av === '') return 1;
+      if (bv === null || bv === undefined || bv === '') return -1;
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+
+    var tbody = document.getElementById('ledgerBody');
+    tbody.innerHTML = '';
+
+    rows.forEach(function (r) {
+      var tr = document.createElement('tr');
+
+      var tdCompany = document.createElement('td');
+      tdCompany.className = 'company';
+      tdCompany.textContent = r.company;
+      tr.appendChild(tdCompany);
+
+      var tdRole = document.createElement('td');
+      tdRole.className = 'role';
+      tdRole.textContent = r.role || '—';
+      tr.appendChild(tdRole);
+
+      var tdApplied = document.createElement('td');
+      var appliedInput = document.createElement('input');
+      appliedInput.type = 'date';
+      appliedInput.className = 'field-input date-input mono';
+      appliedInput.value = r.applied || '';
+      appliedInput.addEventListener('change', function () { writeField(r.id, { applied: appliedInput.value || null }); });
+      tdApplied.appendChild(appliedInput);
+      tr.appendChild(tdApplied);
+
+      var tdStatus = document.createElement('td');
+      var statusWrap = document.createElement('div');
+      statusWrap.style.display = 'flex';
+      statusWrap.style.flexWrap = 'wrap';
+      statusWrap.style.gap = '6px';
+      statusWrap.style.alignItems = 'center';
+      var sel = document.createElement('select');
+      sel.className = 'status-select ' + r.status;
+      STATUS_ORDER.forEach(function (s) {
+        var opt = document.createElement('option');
+        opt.value = s; opt.textContent = STATUS_LABEL[s];
+        if (s === r.status) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', function () {
+        var val = sel.value;
+        var patch = { status: val };
+        if (val === 'rejected' && !r.rejected) patch.rejected = new Date().toISOString().slice(0, 10);
+        if (val !== 'rejected') patch.rejected = docsById[r.id].rejected || null;
+        writeField(r.id, patch);
+        sel.className = 'status-select ' + val;
+        renderAll();
+      });
+      statusWrap.appendChild(sel);
+      if (r.status === 'rejected') {
+        var rejInput = document.createElement('input');
+        rejInput.type = 'date';
+        rejInput.className = 'field-input date-input mono';
+        rejInput.value = r.rejected || '';
+        rejInput.addEventListener('change', function () { writeField(r.id, { rejected: rejInput.value || null }); renderAll(); });
+        statusWrap.appendChild(rejInput);
+      }
+      tdStatus.appendChild(statusWrap);
+      tr.appendChild(tdStatus);
+
+      var tdDays = document.createElement('td');
+      if (r.status === 'rejected' && r.days !== null) {
+        var pill = document.createElement('span');
+        pill.className = 'days-pill' + (r.days <= 3 ? ' fast' : '');
+        pill.textContent = r.days + 'd';
+        tdDays.appendChild(pill);
+      } else {
+        var pill2 = document.createElement('span');
+        pill2.className = 'days-pill unknown';
+        pill2.textContent = '—';
+        tdDays.appendChild(pill2);
+      }
+      tr.appendChild(tdDays);
+
+      var tdActions = document.createElement('td');
+      var delBtn = document.createElement('button');
+      delBtn.className = 'del-btn';
+      delBtn.textContent = '×';
+      delBtn.title = 'Remove';
+      delBtn.addEventListener('click', function () {
+        if (pendingDelete === r.id) {
+          if (db) db.collection('applications').doc(r.id).delete().catch(function (e) { console.error(e); });
+          delete docsById[r.id];
+          pendingDelete = null;
+          renderAll();
+        } else {
+          pendingDelete = r.id;
+          delBtn.textContent = 'sure?';
+          delBtn.classList.add('confirm');
+          setTimeout(function () {
+            if (pendingDelete === r.id) { pendingDelete = null; delBtn.textContent = '×'; delBtn.classList.remove('confirm'); }
+          }, 2500);
+        }
+      });
+      tdActions.appendChild(delBtn);
+      tr.appendChild(tdActions);
+
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('tableCount').textContent = 'Showing ' + rows.length + ' of ' + rowsArray().length + ' applications';
+  }
+
+  function renderAll() {
+    var rows = rowsArray();
+    renderStats(rows);
+    renderWeekChart(rows);
+    renderHistChart(rows);
+    renderTable();
+  }
+
+  document.querySelectorAll('#ledgerTable th[data-key]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var key = th.getAttribute('data-key');
+      if (sortKey === key) { sortDir *= -1; }
+      else { sortKey = key; sortDir = (key === 'applied') ? -1 : 1; }
+      document.querySelectorAll('#ledgerTable th .arrow').forEach(function (a) { a.textContent = ''; a.removeAttribute('data-active'); });
+      var arrow = th.querySelector('.arrow');
+      if (arrow) { arrow.textContent = sortDir === 1 ? '▲' : '▼'; arrow.setAttribute('data-active', ''); }
+      renderTable();
+    });
+  });
+
+  document.querySelectorAll('.filter-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      document.querySelectorAll('.filter-chip').forEach(function (c) { c.classList.remove('active'); });
+      chip.classList.add('active');
+      activeFilter = chip.getAttribute('data-filter');
+      renderTable();
+    });
+  });
+
+  document.getElementById('searchBox').addEventListener('input', function (e) {
+    searchTerm = e.target.value.trim().toLowerCase();
+    renderTable();
+  });
+
+  document.getElementById('addBtn').addEventListener('click', function () {
+    var company = document.getElementById('newCompany').value.trim();
+    var role = document.getElementById('newRole').value.trim();
+    var applied = document.getElementById('newApplied').value || null;
+    if (!company) { document.getElementById('newCompany').focus(); return; }
+    var data = { company: company, role: role, applied: applied, status: 'pending', rejected: null };
+    if (db) {
+      db.collection('applications').add(data).then(function (ref) {
+        docsById[ref.id] = data;
+        renderAll();
+      }).catch(function (e) { console.error(e); });
+    } else {
+      docsById['local-' + Date.now()] = data;
+      renderAll();
+    }
+    document.getElementById('newCompany').value = '';
+    document.getElementById('newRole').value = '';
+    document.getElementById('newApplied').value = '';
+  });
+
+  // ---------- boot ----------
+  async function boot() {
+    var claudeReady = window.claude && window.claude.use;
+    if (!claudeReady) { setSync(false, 'No live storage — read-only preview'); renderAll(); return; }
+    try {
+      db = await window.claude.use('db');
+    } catch (e) { db = null; }
+    if (!db) { setSync(false, 'No live storage — read-only preview'); renderAll(); return; }
+
+    db.collection('applications').onSnapshot(function (snap) {
+      var fresh = {};
+      snap.docs.forEach(function (doc) { fresh[doc.id] = doc.data(); });
+      docsById = fresh;
+      setSync(true, Object.keys(docsById).length + ' applications synced');
+      renderAll();
+    }, function (err) {
+      console.error('db subscribe error', err);
+      setSync(false, 'Sync error — showing last known data');
+    });
+  }
+
+  renderAll();
+  boot();
+})();
+</script>
