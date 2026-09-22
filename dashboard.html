@@ -51,6 +51,8 @@
   }
   .sync-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-good); }
   .sync-chip.offline .dot { background: var(--status-warning); }
+  .header-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .last-updated { margin: 0; font-size: 0.72rem; color: var(--ink-muted); }
 
   .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
@@ -160,7 +162,10 @@
       <h1>Application Ledger</h1>
       <p>Seeded from Gmail &middot; every status below is yours to correct</p>
     </div>
-    <div class="sync-chip" id="syncChip"><span class="dot"></span><span id="syncText">Connecting&hellip;</span></div>
+    <div class="header-meta">
+      <div class="sync-chip" id="syncChip"><span class="dot"></span><span id="syncText">Connecting&hellip;</span></div>
+      <p class="last-updated" id="lastUpdated">&nbsp;</p>
+    </div>
   </header>
 
   <div class="stat-row" id="statRow"></div>
@@ -457,10 +462,12 @@
 
   function writeField(id, patch) {
     if (!db) return;
+    patch.updatedAt = new Date().toISOString();
     Object.assign(docsById[id], patch);
     db.collection('applications').doc(id).update(patch).catch(function (err) {
       console.error('update failed', err);
     });
+    renderLastUpdated();
   }
 
   function renderTable() {
@@ -566,6 +573,7 @@
           if (db) db.collection('applications').doc(r.id).delete().catch(function (e) { console.error(e); });
           delete docsById[r.id];
           pendingDelete = null;
+          renderLastUpdated();
           renderAll();
         } else {
           pendingDelete = r.id;
@@ -591,7 +599,41 @@
     renderWeekChart(rows);
     renderHistChart(rows);
     renderTable();
+    renderLastUpdated();
   }
+
+  // ---------- last updated ----------
+  function relativeTime(iso) {
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) return null;
+    var diffSec = Math.round((Date.now() - then) / 1000);
+    if (diffSec < 0) diffSec = 0;
+    if (diffSec < 45) return 'just now';
+    var mins = Math.round(diffSec / 60);
+    if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+    var days = Math.round(hours / 24);
+    if (days < 30) return days + (days === 1 ? ' day ago' : ' days ago');
+    var months = Math.round(days / 30);
+    return months + (months === 1 ? ' month ago' : ' months ago');
+  }
+
+  function renderLastUpdated() {
+    var el = document.getElementById('lastUpdated');
+    if (!el) return;
+    var stamps = Object.keys(docsById)
+      .map(function (id) { return docsById[id].updatedAt; })
+      .filter(Boolean);
+    if (!stamps.length) { el.textContent = ' '; return; }
+    var latest = stamps.reduce(function (a, b) { return a > b ? a : b; });
+    var rel = relativeTime(latest);
+    el.textContent = rel ? ('Last updated ' + rel) : ' ';
+  }
+
+  setInterval(function () {
+    if (Object.keys(docsById).length) renderLastUpdated();
+  }, 60000);
 
   document.querySelectorAll('#ledgerTable th[data-key]').forEach(function (th) {
     th.addEventListener('click', function () {
@@ -624,7 +666,7 @@
     var role = document.getElementById('newRole').value.trim();
     var applied = document.getElementById('newApplied').value || null;
     if (!company) { document.getElementById('newCompany').focus(); return; }
-    var data = { company: company, role: role, applied: applied, status: 'pending', rejected: null };
+    var data = { company: company, role: role, applied: applied, status: 'pending', rejected: null, updatedAt: new Date().toISOString() };
     if (db) {
       db.collection('applications').add(data).then(function (ref) {
         docsById[ref.id] = data;
